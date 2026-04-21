@@ -38,7 +38,8 @@ class ContinuousTradingBot:
         self.paper_trading = PaperTradingEngine(self.storage)
         self.feedback_loop = FeedbackLoop(self.storage, self.strategy_pool)
         self.market_detector = MarketConditionDetector()
-        self.angelone = AngelOneAPI() if not PAPER_TRADING else None
+        # Create AngelOne client if using real data (even in paper trading)
+        self.angelone = AngelOneAPI() if (not PAPER_TRADING or not USE_MOCK_DATA) else None
         
         # Data fetcher (for real data mode)
         self.data_fetcher = None
@@ -79,9 +80,12 @@ class ContinuousTradingBot:
             print("📅 Next trading day: Check NSE calendar")
             return
         
-        # Login to AngelOne if live trading
-        if not PAPER_TRADING and self.angelone:
+        # Login to AngelOne if using real data (even in paper trading)
+        if not USE_MOCK_DATA and self.angelone:
             if not self.login_with_retry():
+                print("❌ Failed to login. Falling back to mock data.")
+                self.data_fetcher = None
+                # Continue with mock data
                 return
         
         # Record starting capital
