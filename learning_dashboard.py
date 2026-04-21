@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from data.storage import DataStorage
 from strategies.strategy_pool import StrategyPool
 from learning.feedback_loop import FeedbackLoop
+from config.config import USE_MOCK_DATA
 
 class LearningDashboard:
     """Display bot's learning insights"""
@@ -23,7 +24,8 @@ class LearningDashboard:
         print("🧠 BOT LEARNING DASHBOARD")
         print("="*70)
         print(f"📅 Analysis Period: Last {days} days")
-        print(f"🕐 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"� Data Source: {'MOCK DATA' if USE_MOCK_DATA else 'REAL-TIME ANGELONE'}")
+        print(f"�🕐 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("="*70)
         
         # 1. Overall Performance

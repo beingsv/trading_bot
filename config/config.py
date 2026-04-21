@@ -17,6 +17,10 @@ NEWS_API_KEY = os.getenv('NEWS_API_KEY', 'your_news_api_key')
 
 # Trading Parameters
 PAPER_TRADING = True  # Set to False for live trading
+USE_MOCK_DATA = True  # Set to False to use real-time AngelOne data
+# True = Mock data (for testing bot logic, fast, no API limits)
+# False = Real data (for actual trading preparation, uses AngelOne API)
+
 INITIAL_CAPITAL = 100000  # Virtual money for paper trading
 MAX_POSITION_SIZE = 0.1  # Max 10% of capital per trade
 STOP_LOSS_PERCENT = 2.0  # 2% stop loss

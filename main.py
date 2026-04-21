@@ -6,8 +6,9 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-from config.config import PAPER_TRADING, WATCHLIST, MARKET_OPEN_HOUR, MARKET_CLOSE_HOUR
+from config.config import PAPER_TRADING, WATCHLIST, MARKET_OPEN_HOUR, MARKET_CLOSE_HOUR, USE_MOCK_DATA
 from data.storage import DataStorage
+from data.fetcher import DataFetcher
 from analysis.technical import TechnicalAnalyzer
 from analysis.news_sentiment import NewsSentimentAnalyzer
 from strategies.strategy_pool import StrategyPool
@@ -31,6 +32,12 @@ class TradingBot:
         self.feedback_loop = FeedbackLoop(self.storage, self.strategy_pool)
         self.market_detector = MarketConditionDetector()
         self.angelone = AngelOneAPI() if not PAPER_TRADING else None
+        
+        # Data fetcher (for real data mode)
+        self.data_fetcher = None
+        if not USE_MOCK_DATA and self.angelone:
+            self.data_fetcher = DataFetcher(self.angelone.client if self.angelone else None)
+        
         self.signal_generator = SignalGenerator(
             self.strategy_pool, self.technical_analyzer, self.news_analyzer
         )
@@ -44,6 +51,7 @@ class TradingBot:
         """Start the bot"""
         print("\n🚀 STARTING TRADING BOT")
         print(f"📝 Mode: {'PAPER TRADING' if PAPER_TRADING else 'LIVE TRADING'}")
+        print(f"📊 Data Source: {'MOCK DATA' if USE_MOCK_DATA else 'REAL-TIME ANGELONE'}")
         print(f"📈 Watching {len(WATCHLIST)} symbols\n")
         
         # Login to AngelOne if live trading
@@ -107,6 +115,27 @@ class TradingBot:
         
         return df
     
+    def fetch_data(self, symbol, days=100):
+        """Fetch data based on USE_MOCK_DATA setting"""
+        if USE_MOCK_DATA:
+            return self.generate_mock_data(symbol, days)
+        else:
+            # Fetch real data from AngelOne
+            if self.data_fetcher:
+                try:
+                    df = self.data_fetcher.get_historical_data(symbol, days)
+                    if not df.empty:
+                        return df
+                    else:
+                        print(f"  ⚠️  No real data available for {symbol}, using mock data")
+                        return self.generate_mock_data(symbol, days)
+                except Exception as e:
+                    print(f"  ⚠️  Error fetching real data for {symbol}: {e}, using mock data")
+                    return self.generate_mock_data(symbol, days)
+            else:
+                print(f"  ⚠️  Data fetcher not initialized, using mock data")
+                return self.generate_mock_data(symbol, days)
+    
     def analyze_watchlist(self):
         """Analyze all symbols in watchlist"""
         
@@ -114,8 +143,8 @@ class TradingBot:
             print(f"📊 Analyzing {symbol}...")
             
             try:
-                # Generate mock data (in production, fetch from AngelOne)
-                df = self.generate_mock_data(symbol)
+                # Fetch data based on mode (mock or real)
+                df = self.fetch_data(symbol)
                 
                 # Calculate technical indicators
                 df = self.technical_analyzer.calculate_all_indicators(df)

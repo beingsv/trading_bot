@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 from data.storage import DataStorage
+from config.config import USE_MOCK_DATA
 import numpy as np
 
 class PerformanceGraphs:
@@ -19,11 +20,16 @@ class PerformanceGraphs:
     def generate_all_graphs(self, days=30):
         """Generate all performance graphs"""
         print("\n📊 Generating Performance Graphs...")
-        print(f"📅 Period: Last {days} days\n")
+        print(f"📅 Period: Last {days} days")
+        print(f"📊 Data Source: {'MOCK DATA' if USE_MOCK_DATA else 'REAL-TIME ANGELONE'}\n")
         
         # Create figure with subplots
         fig = plt.figure(figsize=(16, 12))
-        fig.suptitle('🤖 Trading Bot Performance Dashboard', fontsize=20, fontweight='bold')
+        
+        # Add data source to title
+        data_source_text = "MOCK DATA" if USE_MOCK_DATA else "REAL-TIME DATA"
+        fig.suptitle(f'🤖 Trading Bot Performance Dashboard ({data_source_text})', 
+                     fontsize=20, fontweight='bold')
         
         # 1. Daily P&L Chart
         ax1 = plt.subplot(3, 2, 1)
