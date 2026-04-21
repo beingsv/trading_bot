@@ -1,0 +1,22 @@
+# AngelOne API
+smartapi-python
+logzero
+websocket-client
+
+# Data Processing
+pandas
+numpy
+matplotlib
+plotly
+
+# News & Sentiment Analysis
+newsapi-python
+textblob
+
+# Utilities
+python-dotenv
+requests
+beautifulsoup4
+schedule
+pytz
+pyotp

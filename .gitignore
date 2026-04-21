@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment Variables (CRITICAL - Contains API Keys)
+config/.env
+
+# Database (Contains trading history)
+data/trading_bot.db
+data/backups/
+
+# Logs
+logs/
+*.log
+
+# News Cache
+data/news_cache.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+PAUSE
+*.tmp
+*.bak
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
