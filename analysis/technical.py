@@ -80,13 +80,18 @@ class TechnicalAnalyzer:
         df['BBL_20_2.0'] = lower
         
         # ATR (Volatility)
-        df['ATR'] = self.calculate_atr(df['high'], df['low'], df['close'], 14)
+        df['ATR_14'] = self.calculate_atr(df['high'], df['low'], df['close'], 14)
         
         # Volume indicators
         df['OBV'] = (np.sign(df['close'].diff()) * df['volume']).fillna(0).cumsum()
         
         # ADX (simplified version)
         df['ADX_14'] = 25  # Placeholder - simplified
+        
+        # ✅ NEW: Professional Intraday Features
+        df = self.calculate_support_resistance(df)
+        df = self.calculate_vwap(df)
+        df = self.add_previous_day_levels(df)
         
         return df
     
@@ -327,3 +332,141 @@ class TechnicalAnalyzer:
                 signals.append(-20)
         
         return np.mean(signals) if signals else 0
+
+    # ========================================
+    # NEW: Professional Intraday Features
+    # ========================================
+    
+    def calculate_support_resistance(self, df, lookback=20):
+        """
+        Identify support and resistance levels
+        Uses swing highs/lows from recent price action
+        """
+        if len(df) < lookback:
+            df['resistance'] = df['high']
+            df['support'] = df['low']
+            return df
+        
+        # Find local maxima (resistance) and minima (support)
+        df['resistance'] = df['high'].rolling(window=lookback, center=True).max()
+        df['support'] = df['low'].rolling(window=lookback, center=True).min()
+        
+        # Forward fill NaN values (new pandas syntax)
+        df['resistance'] = df['resistance'].ffill().bfill()
+        df['support'] = df['support'].ffill().bfill()
+        
+        # Calculate distance from support/resistance (as percentage)
+        df['dist_from_resistance'] = ((df['resistance'] - df['close']) / df['close']) * 100
+        df['dist_from_support'] = ((df['close'] - df['support']) / df['close']) * 100
+        
+        return df
+    
+    def calculate_vwap(self, df):
+        """
+        Calculate Volume Weighted Average Price (VWAP)
+        Critical for intraday trading - shows institutional average price
+        """
+        if len(df) < 2:
+            df['vwap'] = df['close']
+            df['dist_from_vwap'] = 0
+            df['above_vwap'] = 1
+            return df
+        
+        # Typical price
+        typical_price = (df['high'] + df['low'] + df['close']) / 3
+        
+        # Cumulative typical price * volume
+        cum_vol_price = (typical_price * df['volume']).cumsum()
+        
+        # Cumulative volume
+        cum_volume = df['volume'].cumsum()
+        
+        # VWAP
+        df['vwap'] = cum_vol_price / cum_volume
+        
+        # Distance from VWAP (as percentage)
+        df['dist_from_vwap'] = ((df['close'] - df['vwap']) / df['vwap']) * 100
+        
+        # Price position relative to VWAP
+        df['above_vwap'] = (df['close'] > df['vwap']).astype(int)
+        
+        return df
+    
+    def add_previous_day_levels(self, df):
+        """
+        Add previous day's high, low, close
+        These act as psychological support/resistance levels
+        """
+        if len(df) < 2:
+            df['prev_day_high'] = df['high']
+            df['prev_day_low'] = df['low']
+            df['prev_day_close'] = df['close']
+            return df
+        
+        # Assuming data is sorted by timestamp
+        # For intraday, we need to identify day boundaries
+        df['date'] = pd.to_datetime(df['timestamp']).dt.date
+        
+        # Get previous day's levels
+        daily_high = df.groupby('date')['high'].max()
+        daily_low = df.groupby('date')['low'].min()
+        daily_close = df.groupby('date')['close'].last()
+        
+        # Shift to get previous day
+        prev_high = daily_high.shift(1)
+        prev_low = daily_low.shift(1)
+        prev_close = daily_close.shift(1)
+        
+        # Map back to intraday data
+        df['prev_day_high'] = df['date'].map(prev_high)
+        df['prev_day_low'] = df['date'].map(prev_low)
+        df['prev_day_close'] = df['date'].map(prev_close)
+        
+        # Forward fill for first day (new pandas syntax)
+        df['prev_day_high'] = df['prev_day_high'].bfill()
+        df['prev_day_low'] = df['prev_day_low'].bfill()
+        df['prev_day_close'] = df['prev_day_close'].bfill()
+        
+        # Distance from previous day levels
+        df['dist_from_prev_high'] = ((df['prev_day_high'] - df['close']) / df['close']) * 100
+        df['dist_from_prev_low'] = ((df['close'] - df['prev_day_low']) / df['close']) * 100
+        
+        # Clean up
+        df = df.drop(['date'], axis=1)
+        
+        return df
+    
+    def is_near_support(self, df, threshold=1.0):
+        """Check if price is near support (within threshold %)"""
+        if 'dist_from_support' not in df.columns:
+            return False
+        return df['dist_from_support'].iloc[-1] < threshold
+    
+    def is_near_resistance(self, df, threshold=1.0):
+        """Check if price is near resistance (within threshold %)"""
+        if 'dist_from_resistance' not in df.columns:
+            return False
+        return df['dist_from_resistance'].iloc[-1] < threshold
+    
+    def is_above_vwap(self, df):
+        """Check if price is above VWAP (bullish)"""
+        if 'above_vwap' not in df.columns:
+            return False
+        return df['above_vwap'].iloc[-1] == 1
+    
+    def get_vwap_signal(self, df):
+        """
+        Get VWAP-based signal
+        Returns: 'BULLISH', 'BEARISH', or 'NEUTRAL'
+        """
+        if 'dist_from_vwap' not in df.columns:
+            return 'NEUTRAL'
+        
+        dist = df['dist_from_vwap'].iloc[-1]
+        
+        if dist > 0.5:  # Price significantly above VWAP
+            return 'BULLISH'
+        elif dist < -0.5:  # Price significantly below VWAP
+            return 'BEARISH'
+        else:
+            return 'NEUTRAL'

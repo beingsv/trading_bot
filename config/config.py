@@ -15,23 +15,48 @@ ANGELONE_TOTP_SECRET = os.getenv('ANGELONE_TOTP_SECRET', '')
 # News API
 NEWS_API_KEY = os.getenv('NEWS_API_KEY', 'your_news_api_key')
 
-# Trading Parameters
+# ============================================================
+# OPTIONS TRADING CONFIGURATION
+# ============================================================
+
+# Trading Mode
 PAPER_TRADING = True  # Set to False for live trading
-USE_MOCK_DATA = True  # Set to False to use real-time AngelOne data
-# True = Mock data (for testing bot logic, fast, no API limits)
-# False = Real data (for actual trading preparation, uses AngelOne API)
+TRADING_TYPE = 'OPTIONS'  # 'OPTIONS' or 'EQUITY'
 
-INITIAL_CAPITAL = 100000  # Virtual money for paper trading
-MAX_POSITION_SIZE = 0.1  # Max 10% of capital per trade
-STOP_LOSS_PERCENT = 2.0  # 2% stop loss
-TAKE_PROFIT_PERCENT = 5.0  # 5% take profit
+# Capital & Risk
+INITIAL_CAPITAL = 10000  # Virtual money for paper trading
+MAX_DAILY_LOSS = 500  # Stop trading if daily loss exceeds ₹500
+MAX_DAILY_LOSS_PERCENT = 5.0  # Or 5% of capital
+MIN_CAPITAL_TO_TRADE = 2000  # Minimum capital required
 
-# Risk Management
-MAX_DAILY_LOSS = 5000  # Stop trading if daily loss exceeds ₹5,000
-MAX_DAILY_LOSS_PERCENT = 5.0  # Or 5% of capital, whichever is lower
-MAX_POSITIONS = 5  # Maximum number of open positions at once
-MAX_POSITION_PER_SYMBOL = 1  # Only 1 position per stock
-MIN_CAPITAL_TO_TRADE = 10000  # Minimum capital required to continue trading
+# Options-Specific Settings
+MAX_POSITIONS = 2  # Maximum open positions (1-2 for ₹10k capital)
+MAX_POSITION_PER_SYMBOL = 1  # Only 1 position per index
+POSITION_SIZE_PERCENT = 40  # Use 40% of capital per trade (₹4000 per position)
+
+# Options Risk Management
+STOP_LOSS_PERCENT = 25.0  # 25% stop loss (options move fast)
+TAKE_PROFIT_PERCENT = 40.0  # 40% profit target (options can double quickly)
+MAX_THETA_PERCENT = 15.0  # Exit if theta > 15% of premium (time decay)
+MIN_DELTA = 0.35  # Minimum delta for directional trades
+MAX_IV_PERCENTILE = 70  # Don't buy if IV > 70th percentile (too expensive)
+
+# Intraday Rules
+INTRADAY_ONLY = True  # Exit all positions by market close
+NO_TRADE_AFTER_HOUR = 14  # Don't enter new trades after 2 PM (theta risk)
+NO_TRADE_AFTER_MINUTE = 30
+EXIT_ALL_BY_HOUR = 15  # Exit all positions by 3:15 PM
+EXIT_ALL_BY_MINUTE = 15
+
+# Brokerage & Charges (Options Trading - AngelOne)
+BROKERAGE_PER_TRADE = 20  # Flat ₹20 per executed order
+STT_OPTIONS_PERCENT = 0.0625  # 0.0625% on sell side (options)
+TRANSACTION_CHARGES_PERCENT = 0.053  # 0.053% (NSE F&O)
+GST_PERCENT = 18  # 18% GST on brokerage + transaction charges
+SEBI_CHARGES = 10  # ₹10 per crore
+STAMP_DUTY_PERCENT = 0.003  # 0.003% on buy side
+
+# Total typical cost per options trade: ~₹40-60 for ₹4,000 position
 
 # Market Hours (IST)
 MARKET_OPEN_HOUR = 9
@@ -40,30 +65,54 @@ MARKET_CLOSE_HOUR = 15
 MARKET_CLOSE_MINUTE = 30
 
 # Strategy Learning
-MIN_TRADES_FOR_EVALUATION = 20  # Minimum trades before evaluating strategy
+MIN_TRADES_FOR_EVALUATION = 10  # Minimum trades before evaluating (options trade less frequently)
 STRATEGY_EVALUATION_DAYS = 7  # Evaluate strategies weekly
-TOP_STRATEGIES_TO_KEEP = 5  # Keep best performing strategies
+TOP_STRATEGIES_TO_KEEP = 3  # Keep best 3 strategies (simplified)
 
 # Data Storage
 DATABASE_PATH = 'data/trading_bot.db'
 LOGS_PATH = 'logs/'
 
-# Symbols to Trade
-WATCHLIST = [
-    'RELIANCE-EQ',
-    'TCS-EQ',
-    'INFY-EQ',
-    'HDFCBANK-EQ',
-    'ICICIBANK-EQ',
-    'SBIN-EQ',
-    'BHARTIARTL-EQ',
-    'ITC-EQ',
-    'KOTAKBANK-EQ',
-    'LT-EQ'
-]
+# Backup Settings
+AUTO_BACKUP_ENABLED = False  # Set to True to enable auto-backup every 10 trades
+BACKUP_ON_MARKET_CLOSE = True  # Backup when market closes
+BACKUP_KEEP_LAST_N = 10  # Keep last N backups
 
-# Market Indices to Monitor
-INDICES = ['NIFTY', 'BANKNIFTY', 'SENSEX']
+# ============================================================
+# OPTIONS TRADING SYMBOLS
+# ============================================================
+
+# Primary Index for Options Trading
+PRIMARY_INDEX = 'NIFTY'  # Trade NIFTY 50 options
+
+# Index Details
+INDEX_CONFIG = {
+    'NIFTY': {
+        'symbol': 'NIFTY',
+        'token': '99926000',  # NSE NIFTY 50 index token
+        'lot_size': 25,  # 1 lot = 25 contracts (updated for 2026)
+        'tick_size': 0.05,  # Minimum price movement
+        'expiry_day': 'Thursday',  # Weekly expiry
+        'strike_gap': 50,  # Strike price gap (₹50)
+    },
+    'BANKNIFTY': {
+        'symbol': 'BANKNIFTY',
+        'token': '99926009',  # NSE BANKNIFTY index token
+        'lot_size': 15,  # 1 lot = 15 contracts
+        'tick_size': 0.05,
+        'expiry_day': 'Wednesday',
+        'strike_gap': 100,  # Strike price gap (₹100)
+    }
+}
+
+# Strike Selection
+STRIKE_SELECTION = 'ATM'  # 'ATM' (at-the-money), 'OTM1' (1 strike out), 'OTM2' (2 strikes out)
+PREFER_STRIKES = ['ATM', 'OTM1']  # Prefer ATM or 1 OTM for best risk/reward
+
+# Expiry Selection
+EXPIRY_TYPE = 'WEEKLY'  # 'WEEKLY' or 'MONTHLY'
+DAYS_TO_EXPIRY_MIN = 0  # Trade on expiry day (0 DTE)
+DAYS_TO_EXPIRY_MAX = 7  # Or up to 7 days (weekly)
 
 # Market Holidays 2026 (NSE)
 MARKET_HOLIDAYS = [

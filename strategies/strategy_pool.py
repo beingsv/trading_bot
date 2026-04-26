@@ -1,7 +1,14 @@
 """
 Strategy Pool - Manage and evaluate multiple strategies
 """
-from strategies.predefined import get_all_strategies
+from config.config import TRADING_TYPE
+
+# Import appropriate strategies based on trading type
+if TRADING_TYPE == 'OPTIONS':
+    from strategies.options_strategies import get_options_strategies as get_all_strategies
+else:
+    from strategies.predefined import get_all_strategies
+
 import numpy as np
 
 class StrategyPool:
@@ -50,38 +57,133 @@ class StrategyPool:
         total_weight = 0
         reasons = []
         
+        # Count votes
+        buy_votes = 0
+        sell_votes = 0
+        hold_votes = 0
+        
         for signal in signals:
-            # Weight by strategy performance
-            win_rate = signal['performance'].get('win_rate', 50)
-            weight = max(win_rate / 100, 0.3)  # Minimum 30% weight
+            # PAPER TRADING: Don't weight by performance (no history yet)
+            # Use equal weight for all strategies
+            weight = 1.0
             
-            if signal['action'] == 'BUY':
+            # Map options actions to equity actions
+            action = signal['action']
+            if action == 'BUY_CALL':
+                action = 'BUY'
+            elif action == 'BUY_PUT':
+                action = 'SELL'
+            
+            if action == 'BUY':
                 buy_score += signal['confidence'] * weight
+                buy_votes += 1
                 reasons.append(f"{signal['strategy']}: {signal['reason']}")
-            elif signal['action'] == 'SELL':
+            elif action == 'SELL':
                 sell_score += signal['confidence'] * weight
+                sell_votes += 1
                 reasons.append(f"{signal['strategy']}: {signal['reason']}")
+            else:
+                hold_votes += 1
             
             total_weight += weight
         
-        # Normalize scores
-        if total_weight > 0:
-            buy_score /= total_weight
-            sell_score /= total_weight
+        # Normalize scores by number of voting strategies (not total weight)
+        # This way a single 60% vote stays at 60%, not diluted
+        if buy_votes > 0:
+            buy_score = buy_score / buy_votes
+        if sell_votes > 0:
+            sell_score = sell_score / sell_votes
         
-        # Determine final action
-        if buy_score > sell_score and buy_score > 60:
+        # SINGLE STRATEGY MODE: If only 1 strategy, use its signal directly
+        if len(signals) == 1:
+            signal = signals[0]
+            if signal['action'] == 'BUY':
+                return {
+                    'action': 'BUY',
+                    'confidence': signal['confidence'],
+                    'reason': signal['reason'],
+                    'signals': signals
+                }
+            elif signal['action'] == 'SELL':
+                return {
+                    'action': 'SELL',
+                    'confidence': signal['confidence'],
+                    'reason': signal['reason'],
+                    'signals': signals
+                }
+            else:
+                return {
+                    'action': 'HOLD',
+                    'confidence': signal['confidence'],
+                    'reason': signal['reason'],
+                    'signals': signals
+                }
+        
+        # PAPER TRADING MODE: Allow single strong signal to trigger (1 vote minimum)
+        if buy_votes >= 1 and buy_votes > sell_votes and buy_score > 50:
+            confidence = max(buy_score, 52)
+            return {
+                'action': 'BUY',
+                'confidence': confidence,
+                'reason': f"{buy_votes} strategy bullish | " + ' | '.join(reasons[:2]),
+                'signals': signals
+            }
+        elif sell_votes >= 1 and sell_votes > buy_votes and sell_score > 50:
+            confidence = max(sell_score, 52)
+            return {
+                'action': 'SELL',
+                'confidence': confidence,
+                'reason': f"{sell_votes} strategy bearish | " + ' | '.join(reasons[:2]),
+                'signals': signals
+            }
+        
+        # MULTI-STRATEGY MODE: Majority voting - require at least 2 votes for action
+        elif buy_votes >= 2 and buy_votes > sell_votes:  # At least 2 BUY votes
+            confidence = max(buy_score, 52)  # Minimum 52% confidence
+            return {
+                'action': 'BUY',
+                'confidence': confidence,
+                'reason': f"{buy_votes} strategies bullish | " + ' | '.join(reasons[:2]),
+                'signals': signals
+            }
+        elif sell_votes >= 2 and sell_votes > buy_votes:  # At least 2 SELL votes
+            confidence = max(sell_score, 52)  # Minimum 52% confidence
+            return {
+                'action': 'SELL',
+                'confidence': confidence,
+                'reason': f"{sell_votes} strategies bearish | " + ' | '.join(reasons[:2]),
+                'signals': signals
+            }
+        
+        # Original weighted scoring for strong signals
+        elif buy_score > sell_score and buy_score > 50:  # Lowered from 55 to 50
             return {
                 'action': 'BUY',
                 'confidence': buy_score,
                 'reason': ' | '.join(reasons[:3]),
                 'signals': signals
             }
-        elif sell_score > buy_score and sell_score > 60:
+        elif sell_score > buy_score and sell_score > 50:  # Lowered from 55 to 50
             return {
                 'action': 'SELL',
                 'confidence': sell_score,
                 'reason': ' | '.join(reasons[:3]),
+                'signals': signals
+            }
+        
+        # Weak signals
+        elif buy_score > sell_score and buy_score > 45:
+            return {
+                'action': 'BUY',
+                'confidence': buy_score,
+                'reason': 'Weak bullish bias | ' + ' | '.join(reasons[:2]) if reasons else 'Weak bullish bias',
+                'signals': signals
+            }
+        elif sell_score > buy_score and sell_score > 45:
+            return {
+                'action': 'SELL',
+                'confidence': sell_score,
+                'reason': 'Weak bearish bias | ' + ' | '.join(reasons[:2]) if reasons else 'Weak bearish bias',
                 'signals': signals
             }
         

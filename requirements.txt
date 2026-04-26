@@ -6,6 +6,7 @@ websocket-client
 # Data Processing
 pandas
 numpy
+scipy  # For options Greeks calculation (Black-Scholes)
 matplotlib
 plotly
 

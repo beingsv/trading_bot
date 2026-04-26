@@ -16,6 +16,10 @@ class DataStorage:
         self.conn = sqlite3.connect(DATABASE_PATH, check_same_thread=False)
         self.create_tables()
         self.backup_count = 0
+        
+        # Import config for backup settings
+        from config.config import AUTO_BACKUP_ENABLED
+        self.auto_backup_enabled = AUTO_BACKUP_ENABLED
     
     def create_tables(self):
         """Create necessary tables"""
@@ -91,15 +95,18 @@ class DataStorage:
         ''', (symbol, strategy, action, price, quantity, datetime.now(), pnl, reason))
         self.conn.commit()
         
-        # Auto-backup every 10 trades
-        self.backup_count += 1
-        if self.backup_count >= 10:
-            self.backup_database()
-            self.backup_count = 0
+        # Auto-backup every 10 trades (only if enabled)
+        if self.auto_backup_enabled:
+            self.backup_count += 1
+            if self.backup_count >= 10:
+                self.backup_database()
+                self.backup_count = 0
     
-    def backup_database(self):
+    def backup_database(self, silent=False):
         """Create backup of database"""
         try:
+            from config.config import BACKUP_KEEP_LAST_N
+            
             backup_dir = 'data/backups'
             os.makedirs(backup_dir, exist_ok=True)
             
@@ -109,15 +116,19 @@ class DataStorage:
             
             shutil.copy2(DATABASE_PATH, backup_file)
             
-            # Keep only last 10 backups
+            # Keep only last N backups
             backups = sorted([f for f in os.listdir(backup_dir) if f.endswith('.db')])
-            if len(backups) > 10:
-                for old_backup in backups[:-10]:
+            if len(backups) > BACKUP_KEEP_LAST_N:
+                for old_backup in backups[:-BACKUP_KEEP_LAST_N]:
                     os.remove(os.path.join(backup_dir, old_backup))
             
-            print(f"  💾 Database backed up: {backup_file}")
+            if not silent:
+                print(f"💾 Database backed up: {backup_file}")
+            return backup_file
         except Exception as e:
-            print(f"  ⚠️  Backup failed: {e}")
+            if not silent:
+                print(f"⚠️  Backup failed: {e}")
+            return None
     
     def restore_from_backup(self, backup_file=None):
         """Restore database from backup"""
